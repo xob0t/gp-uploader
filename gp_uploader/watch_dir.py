@@ -63,8 +63,12 @@ class Watcher:
                         self.logger.info("Upload complete")
                         self.logger.info(f"Deleting {file} from host")
                         os.remove(host_file_path)
-                        self._delete_from_device(device_file_path, file)
-                        break
+                        for _ in range(3):
+                            if self._delete_from_device(device_file_path, file) == 0:
+                                break
+                            else:
+                                self.logger.debug("error deletig file from device")
+                                time.sleep(1)
                     elif (
                         self.device.toast.get_message(1, 60) == "Error, could not upload media"
                         or not upload_text_check.exists):
@@ -86,14 +90,13 @@ class Watcher:
             exit_code = subprocess.run(["adb", "-s", self.s,  "push", host_file_path, device_file_path]).returncode
         else:
             exit_code = subprocess.run(["adb", "push", host_file_path, device_file_path]).returncode
-        # self.device.push(host_file_path,device_file_path, show_progress = True)
         assert exit_code == 0
         return device_file_path
     
     def _delete_from_device(self, device_file_path, file_name):
         self.logger.info(f"Deleting {file_name} from device")
         exit_code = self.device.shell(f'rm {device_file_path}', timeout=60).exit_code
-        assert exit_code == 0
+        return exit_code
 
     def _start_upload(self, device_file_path):
         self.logger.info(f"Uploading {device_file_path}")
