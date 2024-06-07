@@ -1,6 +1,7 @@
 import logging
 import os
 from pathlib import Path
+import subprocess
 import time
 import argparse
 from rich.logging import RichHandler
@@ -71,10 +72,22 @@ class Watcher:
                         self.logger.info("Error, could not upload media")
                         break
 
+    # def _push_to_device(self, host_file_path, file_name):
+    #     self.logger.info(f"Pushing {host_file_path} to device")
+    #     device_file_path = Path.joinpath(self.device_media_path, file_name).as_posix()
+    #     self.device.push(host_file_path,device_file_path, show_progress = True)
+    #     return device_file_path
+    
     def _push_to_device(self, host_file_path, file_name):
         self.logger.info(f"Pushing {host_file_path} to device")
         device_file_path = Path.joinpath(self.device_media_path, file_name).as_posix()
-        self.device.push(host_file_path,device_file_path, show_progress = True)
+        exit_code = None
+        if self.s:
+            exit_code = subprocess.run(["adb", "-s", self.s,  "push", host_file_path, device_file_path]).returncode
+        else:
+            exit_code = subprocess.run(["adb", "push", host_file_path, device_file_path]).returncode
+        # self.device.push(host_file_path,device_file_path, show_progress = True)
+        assert exit_code == 0
         return device_file_path
     
     def _delete_from_device(self, device_file_path, file_name):
