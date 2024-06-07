@@ -34,7 +34,7 @@ class Watcher:
                 self.logger.info("Device found")
                 return d
             except:
-                pass
+                time.sleep(0.5)
 
     def watch(self):
         self.logger = self._new_logger(self.log_level)
@@ -74,7 +74,7 @@ class Watcher:
     def _push_to_device(self, host_file_path, file_name):
         self.logger.info(f"Pushing {host_file_path} to device")
         device_file_path = Path.joinpath(self.device_media_path, file_name).as_posix()
-        self.device.push(host_file_path,device_file_path)
+        self.device.push(host_file_path,device_file_path, show_progress = True)
         return device_file_path
     
     def _delete_from_device(self, device_file_path, file_name):
