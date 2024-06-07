@@ -92,7 +92,7 @@ class Watcher:
     
     def _delete_from_device(self, device_file_path, file_name):
         self.logger.info(f"Deleting {file_name} from device")
-        exit_code = self.device.shell(f'rm {device_file_path}', timeout=60).exit_code
+        exit_code = self.device.shell(f'rm "{device_file_path}"', timeout=60).exit_code
         assert exit_code == 0
 
     def _start_upload(self, device_file_path):
