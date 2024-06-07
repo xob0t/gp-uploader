@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name='gp-uploader',
-    version='0.0.3',
+    version='0.0.4',
     description='Script to monitor a directory and upload any new files to google photo using adb connected android device',
     author='xob0t',
     url='https://github.com/xob0t/gp-uploader',
