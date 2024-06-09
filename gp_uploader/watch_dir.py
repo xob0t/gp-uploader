@@ -10,8 +10,7 @@ import uiautomator2 as u2
 
 class Watcher:
     def __init__(self,target_path, serial = "", log_level = ""):
-        self.logger = None
-        self.log_level = log_level
+        self.logger = self._new_logger(log_level)
         self.s = serial
         self.device = None
         self.device_media_path = Path("/sdcard/DCIM")
@@ -38,7 +37,6 @@ class Watcher:
                 time.sleep(0.5)
 
     def watch(self):
-        self.logger = self._new_logger(self.log_level)
         self.device = self._wait_for_device()
         while True:
             files = os.listdir(self.target_path)
@@ -50,7 +48,11 @@ class Watcher:
             self.logger.info(f"{len(files)} left to upload")
             for file in files:
                 host_file_path = Path.joinpath(self.target_path, file).as_posix()
-                device_file_path = self._push_to_device(host_file_path, file)
+                device_file_path = Path.joinpath(self.device_media_path, file).as_posix()
+                host_file_size = Path(host_file_path).stat().st_size
+                device_file_size = self._get_file_size_on_device(device_file_path, file)
+                if host_file_size != device_file_size:
+                    device_file_path = self._push_to_device(host_file_path, device_file_path)
                 self._start_upload(device_file_path)
                 while True:
                     upload_text_check = self.device(text="Uploading Photos", className="android.widget.TextView")
@@ -71,22 +73,14 @@ class Watcher:
                         self.device.toast.reset()
                         self.logger.info("Error, could not upload media")
                         break
-
-    # def _push_to_device(self, host_file_path, file_name):
-    #     self.logger.info(f"Pushing {host_file_path} to device")
-    #     device_file_path = Path.joinpath(self.device_media_path, file_name).as_posix()
-    #     self.device.push(host_file_path,device_file_path, show_progress = True)
-    #     return device_file_path
     
-    def _push_to_device(self, host_file_path, file_name):
+    def _push_to_device(self, host_file_path, device_file_path):
         self.logger.info(f"Pushing {host_file_path} to device")
-        device_file_path = Path.joinpath(self.device_media_path, file_name).as_posix()
         exit_code = None
         if self.s:
             exit_code = subprocess.run(["adb", "-s", self.s,  "push", host_file_path, device_file_path]).returncode
         else:
             exit_code = subprocess.run(["adb", "push", host_file_path, device_file_path]).returncode
-        # self.device.push(host_file_path,device_file_path, show_progress = True)
         assert exit_code == 0
         return device_file_path
     
@@ -94,6 +88,15 @@ class Watcher:
         self.logger.info(f"Deleting {file_name} from device")
         exit_code = self.device.shell(f'rm "{device_file_path}"', timeout=60).exit_code
         assert exit_code == 0
+
+    def _get_file_size_on_device(self, device_file_path, file_name):
+        self.logger.debug(f"Checking {file_name} file size on device")
+        output = self.device.shell(f'stat -c %s "{device_file_path}"', timeout=60).output
+        try:
+            size = int(output)
+        except:
+            size  = 0
+        return size
 
     def _start_upload(self, device_file_path):
         self.logger.info(f"Uploading {device_file_path}")
