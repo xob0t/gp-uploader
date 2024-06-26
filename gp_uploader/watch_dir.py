@@ -76,12 +76,9 @@ class Watcher:
     
     def _push_to_device(self, host_file_path, device_file_path):
         self.logger.info(f"Pushing {host_file_path} to device")
-        exit_code = None
-        if self.s:
-            exit_code = subprocess.run(["adb", "-s", self.s,  "push", host_file_path, device_file_path]).returncode
-        else:
-            exit_code = subprocess.run(["adb", "push", host_file_path, device_file_path]).returncode
-        assert exit_code == 0
+        cmd = ["adb", "push", host_file_path, device_file_path]
+        cmd = cmd[:1] + ["-s", self.s] + cmd[1:] if self.s else None
+        subprocess.run(cmd, check=True)
         return device_file_path
     
     def _delete_from_device(self, device_file_path, file_name):
