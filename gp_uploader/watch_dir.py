@@ -48,7 +48,7 @@ class Adb_utils:
     def click_coordinates(self, coordinates):
         if coordinates:
             x, y = coordinates
-            subprocess.run(["adb", "shell", "input", "tap", str(x), str(y)])
+            subprocess.run(self.device + [ "shell", "input", "tap", str(x), str(y)])
         else:
             raise Exception(f"Element not found for coordinates: {coordinates}")
 
