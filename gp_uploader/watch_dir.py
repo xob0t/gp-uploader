@@ -165,14 +165,14 @@ class Watcher:
             self.upload_btn_coords = self.adb_utils.get_element_coordinates_by_xpath(upload_button_xpath)
         upload_status = self._start_upload()
         if upload_status is True:
-            self.logger.info("Upload complete")
+            self.logger.info(f"{device_file_path.name} upload complete")
             self._save_as_uploaded(device_file_path.name)
             if not self.host_keep:
                 self.logger.info(f"{device_file_path.name} deleting from host")
                 os.remove(host_file_path)
             self._delete_from_device(device_file_path)
         else:
-            self.logger.info("Error, could not upload media")
+            self.logger.info(f"{device_file_path.name} upload error")
 
     def _save_as_uploaded(self, filename):
         with open("uploaded.txt", "a", encoding="UTF-8") as file:
