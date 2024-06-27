@@ -6,6 +6,7 @@ import time
 import argparse
 from io import BytesIO
 from lxml import etree
+from urllib.parse import quote
 from rich.logging import RichHandler
 
 
@@ -205,7 +206,7 @@ class Watcher:
 
     def _send_intent(self, device_file_path):
         self.logger.info(f"{device_file_path.name} starting upload")
-        uri = "file://" + device_file_path.as_posix()
+        uri = "file://" + quote(device_file_path.as_posix())
         process = subprocess.run(
             self.device + ["shell", "am", "start", "-a", "android.intent.action.SEND", "-t", "application/octet-stream",
                            "-n", "com.google.android.apps.photos/.upload.intent.UploadContentActivity",
