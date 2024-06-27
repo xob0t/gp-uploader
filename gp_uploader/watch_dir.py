@@ -124,7 +124,7 @@ class Watcher:
     def upload_files(self):
         self._wait_for_device()
         # get files
-        files = [f for f in Path(self.target_path).iterdir() if f.is_file()]
+        files = [f for f in Path(self.target_path).rglob('*') if f.is_file()]
         self.uploaded = self._get_uploaded()
         if not files:
             time_to_sleep = 30
