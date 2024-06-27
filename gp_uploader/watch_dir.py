@@ -23,7 +23,7 @@ class Adb_utils:
             raise Exception("uiautomator dump is empty")
         return xml_content
 
-    def _get_element_coordinates_by_xpath(self, xpath):
+    def get_element_coordinates_by_xpath(self, xpath):
         xml_content = self._get_ui_hierarchy_dump()
         # Parse the XML content
         xml_content_bytes = xml_content.encode("utf-8")
@@ -44,22 +44,22 @@ class Adb_utils:
         else:
             return None
 
-    def click_element_by_xpath(self, xpath):
-        coordinates = self._get_element_coordinates_by_xpath(xpath)
+    def click_coordinates(self, coordinates):
         if coordinates:
             x, y = coordinates
             subprocess.run(["adb", "shell", "input", "tap", str(x), str(y)])
         else:
-            raise Exception(f"Element not found for XPath: {xpath}")
+            raise Exception(f"Element not found for coordinates: {coordinates}")
 
-    def wait_for_element_by_xpath(self, xpath, timeout=30):
+    def wait_for_element_by_xpath(self, xpath, timeout=60):
         start_time = time.time()
         while time.time() - start_time < timeout:
-            element = self._get_element_coordinates_by_xpath(xpath)
+            element = self.get_element_coordinates_by_xpath(xpath)
             if element:
                 return element
             time.sleep(1)  # Check every 1 second
         return None
+
 
 class Watcher:
     def __init__(self, target_path, serial="", host_keep=False, log_uploads=False, log_level=""):
@@ -72,6 +72,7 @@ class Watcher:
         self.target_path = Path(target_path)
         self.upload_status = None  # used for toast monitoring
         self.adb_utils = Adb_utils(serial)
+        self.upload_btn_coords = None
 
     def _new_logger(self, log_level):
         logging.basicConfig(
@@ -95,11 +96,13 @@ class Watcher:
                 self.logger.debug(e)
                 time.sleep(0.5)
 
-    def _upload_status_monitor(self):
+    def _start_upload(self):
         command = self.device + ["shell", "uiautomator events"]
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
         try:
+            self.adb_utils.click_coordinates(self.upload_btn_coords)
+            self.logger.info("waiting for status toast")
             while True:
                 # Read a line from the events log
                 line = process.stdout.readline()
@@ -152,9 +155,12 @@ class Watcher:
         device_file_size = self._get_file_size_on_device(device_file_path)
         if host_file_size != device_file_size:
             device_file_path = self._push_to_device(host_file_path, device_file_path)
-        self._start_upload(device_file_path)
-        self.logger.info("waiting for status toast")
-        upload_status = self._upload_status_monitor()
+        self._send_intent(device_file_path)
+        upload_button_xpath = '//*[@resource-id="com.google.android.apps.photos:id/upload_button" and @clickable="true" and @enabled="true"]'
+        self.adb_utils.wait_for_element_by_xpath(upload_button_xpath)
+        if not self.upload_btn_coords:
+            self.upload_btn_coords = self.adb_utils.get_element_coordinates_by_xpath(upload_button_xpath)
+        upload_status = self._start_upload()
         if upload_status is True:
             self.logger.info("Upload complete")
             self._save_as_uploaded(device_file_path.name)
@@ -195,7 +201,7 @@ class Watcher:
         self.logger.info(f"{device_file_path.name} deleting from device")
         subprocess.run(self.device + ["shell", f'rm "{device_file_path.as_posix()}"'], check=True)
 
-    def _start_upload(self, device_file_path):
+    def _send_intent(self, device_file_path):
         self.logger.info(f"{device_file_path.name} starting upload")
         uri = "file://" + device_file_path.as_posix()
         process = subprocess.run(
@@ -205,22 +211,19 @@ class Watcher:
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
         )
 
         self.logger.debug(process.stdout) if process.stdout else None
         self.logger.debug(process.stderr) if process.stderr else None
-
-        upload_button = '//*[@resource-id="com.google.android.apps.photos:id/upload_button" and @clickable="true" and @enabled="true"]'
-        self.adb_utils.click_element_by_xpath(upload_button)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("dir", type=str, help="Directory path to watch")
     parser.add_argument("-s", "--serial", type=str, help="Serial of the device to connect to")
-    parser.add_argument("-k", "--host-keep", action='store_true', help="Do not delete host files on successful upload")
-    parser.add_argument("-u", "--log-uploads", action='store_true', help="Keep log of successful uploads in uploaded.txt")
+    parser.add_argument("-k", "--host-keep", action="store_true", help="Do not delete host files on successful upload")
+    parser.add_argument("-u", "--log-uploads", action="store_true", help="Keep log of successful uploads in uploaded.txt")
     parser.add_argument("-l", "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Log level")
     args = parser.parse_args()
 
