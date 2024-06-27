@@ -133,7 +133,7 @@ class Watcher:
             return
         for file in new_files:
             host_file_path = file
-            device_file_path = Path.joinpath(self.device_media_path, file)
+            device_file_path = Path.joinpath(self.device_media_path, file.name)
             try:
                 self._upload(host_file_path, device_file_path)
             except Exception as e:
