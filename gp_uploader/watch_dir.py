@@ -219,8 +219,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("dir", type=str, help="Directory path to watch")
     parser.add_argument("-s", "--serial", type=str, help="Serial of the device to connect to")
-    parser.add_argument("-k", "--host-keep", type=bool, help="Do not delete host files on successful upload")
-    parser.add_argument("-u", "--log-uploads", type=bool, help="Keep log of successful uploads in uploaded.txt")
+    parser.add_argument("-k", "--host-keep", action='store_true', help="Do not delete host files on successful upload")
+    parser.add_argument("-u", "--log-uploads", action='store_true', help="Keep log of successful uploads in uploaded.txt")
     parser.add_argument("-l", "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Log level")
     args = parser.parse_args()
 
