@@ -101,6 +101,8 @@ class Watcher:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
         try:
+            # sleeping 1s or it may not catch toast
+            time.sleep(1)
             self.adb_utils.click_coordinates(self.upload_btn_coords)
             self.logger.info("waiting for status toast")
             while True:
