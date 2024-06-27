@@ -14,6 +14,9 @@
             "console": "integratedTerminal",
             "args": [
                 "./test_media",
+                "-ku",
+                "-s",
+                "-l", "DEBUG",
             ],
             "justMyCode": true,
         }

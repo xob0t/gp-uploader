@@ -9,7 +9,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         'rich',
-        'uiautomator2==2.16.26',
+        'lxml',
     ],
     entry_points={
         'console_scripts': ['gp-uploader = gp_uploader.watch_dir:main']
