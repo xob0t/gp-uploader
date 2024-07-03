@@ -64,12 +64,12 @@ class Adb_utils:
 
 
 class Watcher:
-    def __init__(self, target_path, serial="", timeout = None, host_keep=False, log_uploads=False, log_level=""):
+    def __init__(self, target_path, serial="", timeout = None, host_delete=False, no_log=False, log_level=""):
         self.logger = self._new_logger(log_level)
         self.device = ["adb", "-s", serial] if serial else ["adb"]
         self.timeout = timeout
-        self.host_keep = host_keep
-        self.log_uploads = log_uploads
+        self.host_delete = host_delete
+        self.no_log = no_log
         self.uploaded = self._get_uploaded()
         self.device_media_path = Path("/sdcard/DCIM")
         self.target_path = Path(target_path)
@@ -178,9 +178,9 @@ class Watcher:
         upload_status = self._start_upload()
         if upload_status is True:
             self.logger.info(f"{self.current_upload_filename} upload complete")
-            if self.log_uploads:
+            if not self.no_log:
                 self._save_as_uploaded(self.current_upload_filename)
-            if not self.host_keep:
+            if self.host_delete:
                 self.logger.info(f"{self.current_upload_filename} deleting from host")
                 os.remove(host_file_path)
             self._delete_from_device(device_file_path)
@@ -244,12 +244,12 @@ def main():
     parser.add_argument("dir", type=str, help="Directory path to watch")
     parser.add_argument("-s", "--serial", type=str, help="Serial of the device to connect to")
     parser.add_argument("-t", "--timeout", type=int, help="Upload timeout, seconds")
-    parser.add_argument("-k", "--host-keep", action="store_true", help="Do not delete host files on successful upload")
-    parser.add_argument("-u", "--log-uploads", action="store_true", help="Keep log of successful uploads in uploaded.txt")
+    parser.add_argument("-d", "--host-delete", action="store_true", help="Delete host files on successful upload")
+    parser.add_argument("-n", "--no-log", action="store_true", help="Do not keep log of successful uploads in uploaded.txt")
     parser.add_argument("-l", "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Log level")
     args = parser.parse_args()
 
-    u = Watcher(args.dir, args.serial, args.timeout, args.host_keep, args.log_uploads, args.log_level)
+    u = Watcher(args.dir, args.serial, args.timeout, args.host_delete, args.no_log, args.log_level)
     u.watch()
 
 
