@@ -119,7 +119,7 @@ class Watcher:
                     return True
                 elif "Error, could not upload media" in line:
                     return False
-                if time.time() - start_time > self.timeout:
+                if self.timeout (time.time() - start_time > self.timeout):
                     self.logger.warning(f"{self.current_upload_filename} upload timeout reached")
                     break
         except KeyboardInterrupt:
