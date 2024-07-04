@@ -151,11 +151,8 @@ class Watcher:
             self._stop_photos()
             self.current_upload_filename = file.name
             host_file_path = file
-            device_file_path = Path.joinpath(self.device_media_path, file.name)
-            try:
-                self._upload(host_file_path, device_file_path)
-            except Exception as e:
-                self.logger.critical(e)
+            device_file_path = Path.joinpath(self.device_media_path, self.current_upload_filename)
+            self._upload(host_file_path, device_file_path)
 
     def watch(self):
         while True:
