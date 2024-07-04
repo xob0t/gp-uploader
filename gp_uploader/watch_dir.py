@@ -100,24 +100,26 @@ class Watcher:
                 self.logger.debug(e)
                 time.sleep(0.5)
 
-    def _start_upload(self):
-        command = self.device + ["shell", "uiautomator events"]
+    def _wait_for_status(self):
+        command = self.device + ["shell", "logcat"]
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
         try:
             # sleeping 1s or it may not catch toast
             time.sleep(1)
-            self.adb_utils.click_coordinates(self.upload_btn_coords)
-            self.logger.info("waiting for status toast")
+            
+            self.logger.info("waiting for status log")
 
             start_time = time.time()
             while True:
                 # Read a line from the events log
                 line = process.stdout.readline()
                 # Check if the target text is in the line
-                if "Upload complete" in line:
+                if "RevancedPhotos: uploadComplete" in line:
+                    self._clear_logcat()
                     return True
-                elif "Error, could not upload media" in line:
+                elif "RevancedPhotos: uploadError" in line:
+                    self._clear_logcat()
                     return False
                 if self.timeout and (time.time() - start_time > self.timeout):
                     self.logger.warning(f"{self.current_upload_filename} upload timeout reached")
@@ -168,11 +170,12 @@ class Watcher:
         if host_file_size != device_file_size:
             device_file_path = self._push_to_device(host_file_path, device_file_path)
         self._send_intent(device_file_path)
-        upload_button_xpath = '//*[@resource-id="com.google.android.apps.photos:id/upload_button" and @clickable="true" and @enabled="true"]'
+        upload_button_xpath = '//*[@resource-id="app.revanced.android.photos:id/upload_button" and @clickable="true" and @enabled="true"]'
         self.adb_utils.wait_for_element_by_xpath(upload_button_xpath)
         if not self.upload_btn_coords:
             self.upload_btn_coords = self.adb_utils.get_element_coordinates_by_xpath(upload_button_xpath)
-        upload_status = self._start_upload()
+        self.adb_utils.click_coordinates(self.upload_btn_coords)
+        upload_status = self._wait_for_status()
         if upload_status is True:
             self.logger.info(f"{self.current_upload_filename} upload complete")
             if not self.no_log:
@@ -197,7 +200,12 @@ class Watcher:
     
     def _stop_photos(self):
         self.logger.debug("killing Photos app")
-        cmd = self.device + ["shell", "am", "force-stop", "com.google.android.apps.photos"]
+        cmd = self.device + ["shell", "am", "force-stop", "app.revanced.android.photos"]
+        subprocess.run(cmd, check=True)
+
+    def _clear_logcat(self):
+        self.logger.debug("logcat clear")
+        cmd = self.device + ["logcat", "-c"]
         subprocess.run(cmd, check=True)
 
     def _get_file_size_on_device(self, device_file_path):
@@ -224,7 +232,7 @@ class Watcher:
         uri = "file://" + quote(device_file_path.as_posix())
         process = subprocess.run(
             self.device + ["shell", "am", "start", "-a", "android.intent.action.SEND", "-t", "application/octet-stream",
-                           "-n", "com.google.android.apps.photos/.upload.intent.UploadContentActivity",
+                           "-n", "app.revanced.android.photos/com.google.android.apps.photos.upload.intent.UploadContentActivity",
                            "--eu", "android.intent.extra.STREAM", uri],
             check=True,
             stdout=subprocess.PIPE,
