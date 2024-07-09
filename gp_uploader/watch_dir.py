@@ -105,9 +105,6 @@ class Watcher:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
         try:
-            # sleeping 1s or it may not catch toast
-            time.sleep(1)
-            
             self.logger.info("waiting for status log")
 
             start_time = time.time()
