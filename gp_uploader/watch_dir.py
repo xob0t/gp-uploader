@@ -4,64 +4,8 @@ from pathlib import Path
 import subprocess
 import time
 import argparse
-from io import BytesIO
-from lxml import etree
 from urllib.parse import quote
 from rich.logging import RichHandler
-
-
-class Adb_utils:
-    def __init__(self, serial=""):
-        self.device = ["adb", "-s", serial] if serial else ["adb"]
-
-    def _get_ui_hierarchy_dump(self):
-        cmd = self.device + ["exec-out", "uiautomator dump /dev/tty"]
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
-        # The output will contain some additional lines, so we need to extract the XML part
-        xml_start = result.stdout.find("<hierarchy")
-        xml_end = result.stdout.find("UI hierchary dumped to")
-        xml_content = result.stdout[xml_start:xml_end]
-        if not xml_content:
-            raise Exception("uiautomator dump is empty")
-        return xml_content
-
-    def get_element_coordinates_by_xpath(self, xpath):
-        xml_content = self._get_ui_hierarchy_dump()
-
-        xml_content_bytes = xml_content.encode("utf-8")
-        # Parse the XML content
-        tree = etree.parse(BytesIO(xml_content_bytes))
-        root = tree.getroot()
-
-        # Find the element by XPath
-        element = root.xpath(xpath)
-        if element:
-            element = element[0]  # Take the first match if there are multiple
-            bounds = element.attrib["bounds"]
-            # Extract the coordinates
-            bounds = bounds.replace("[", "").replace("]", ",").split(",")
-            x = (int(bounds[0]) + int(bounds[2])) // 2
-            y = (int(bounds[1]) + int(bounds[3])) // 2
-            return x, y
-        else:
-            return None
-
-    def click_coordinates(self, coordinates):
-        if coordinates:
-            x, y = coordinates
-            subprocess.run(self.device + [ "shell", "input", "tap", str(x), str(y)])
-        else:
-            raise Exception(f"Element not found for coordinates: {coordinates}")
-
-    def wait_for_element_by_xpath(self, xpath, timeout=60):
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            element = self.get_element_coordinates_by_xpath(xpath)
-            if element:
-                return element
-            time.sleep(1)  # Check every 1 second
-        return None
-
 
 class Watcher:
     def __init__(self, target_path, serial="", timeout = None, host_delete=False, no_log=False, log_level=""):
@@ -73,10 +17,8 @@ class Watcher:
         self.uploaded = self._get_uploaded()
         self.device_media_path = Path("/sdcard/DCIM")
         self.target_path = Path(target_path)
-        self.upload_status = None  # used for toast monitoring
-        self.adb_utils = Adb_utils(serial)
-        self.upload_btn_coords = None
         self.current_upload_filename = ""
+        self.timeout = 3000
 
     def _new_logger(self, log_level):
         logging.basicConfig(
@@ -101,6 +43,9 @@ class Watcher:
                 time.sleep(0.5)
 
     def _wait_for_status(self):
+        # logact clear may be inconsistent, so we clear it before and after upload
+        self._clear_logcat()
+        time.sleep(1)
         command = self.device + ["shell", "logcat"]
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
@@ -128,11 +73,19 @@ class Watcher:
             process.terminate()
             process.wait()
 
+    def watch(self):
+        while True:
+            try:
+                self._upload_files()
+            except Exception as e:
+                self.logger.critical(e)
+                time.sleep(30)
+
     def _upload_files(self):
         self._wait_for_device()
         # get files
         files = [f for f in Path(self.target_path).rglob('*') if f.is_file()]
-        # gp does not like dotfiles sent via adb intets for some reason
+        # gp does not like dotfiles sent via adb intents for some reason
         files = [f for f in files if not f.name.startswith(".")]
         self.uploaded = self._get_uploaded()
         if not files:
@@ -153,25 +106,14 @@ class Watcher:
             device_file_path = Path.joinpath(self.device_media_path, self.current_upload_filename)
             self._upload(host_file_path, device_file_path)
 
-    def watch(self):
-        while True:
-            try:
-                self._upload_files()
-            except Exception as e:
-                self.logger.critical(e)
-                time.sleep(30)
 
     def _upload(self, host_file_path, device_file_path):
+        self._stop_photos()
         host_file_size = host_file_path.stat().st_size
         device_file_size = self._get_file_size_on_device(device_file_path)
         if host_file_size != device_file_size:
             device_file_path = self._push_to_device(host_file_path, device_file_path)
         self._send_intent(device_file_path)
-        upload_button_xpath = '//*[@resource-id="app.revanced.android.photos:id/upload_button" and @clickable="true" and @enabled="true"]'
-        self.adb_utils.wait_for_element_by_xpath(upload_button_xpath)
-        if not self.upload_btn_coords:
-            self.upload_btn_coords = self.adb_utils.get_element_coordinates_by_xpath(upload_button_xpath)
-        self.adb_utils.click_coordinates(self.upload_btn_coords)
         upload_status = self._wait_for_status()
         if upload_status is True:
             self.logger.info(f"{self.current_upload_filename} upload complete")
@@ -182,7 +124,8 @@ class Watcher:
                 os.remove(host_file_path)
             self._delete_from_device(device_file_path)
         else:
-            self.logger.info(f"{self.current_upload_filename} upload error")
+            raise Exception(f"{self.current_upload_filename} upload error")
+
 
     def _save_as_uploaded(self, filename):
         with open("uploaded.txt", "a", encoding="UTF-8") as file:
