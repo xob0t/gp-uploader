@@ -5,13 +5,16 @@ import subprocess
 import time
 import argparse
 from urllib.parse import quote
+import sqlite3
 from rich.logging import RichHandler
 
+
 class Watcher:
-    def __init__(self, target_path, serial="", timeout = None, host_delete=False, no_log=False, log_level=""):
+    def __init__(self, target_path, serial="", timeout=None, gpdb_path="", host_delete=False, no_log=False, log_level=""):
         self.logger = self._new_logger(log_level)
         self.device = ["adb", "-s", serial] if serial else ["adb"]
         self.timeout = timeout
+        self.gpdb_path = gpdb_path
         self.host_delete = host_delete
         self.no_log = no_log
         self.uploaded = self._get_uploaded()
@@ -84,10 +87,12 @@ class Watcher:
     def _upload_files(self):
         self._wait_for_device()
         # get files
-        files = [f for f in Path(self.target_path).rglob('*') if f.is_file()]
+        files = [f for f in Path(self.target_path).rglob("*") if f.is_file()]
         # gp does not like dotfiles sent via adb intents for some reason
         files = [f for f in files if not f.name.startswith(".")]
         self.uploaded = self._get_uploaded()
+        if self.gpdb_path:
+            self.uploaded.extend(self._get_remote_media_list())
         if not files:
             time_to_sleep = 30
             self.logger.info(f"empty dir, checking again in {time_to_sleep}s")
@@ -105,7 +110,6 @@ class Watcher:
             host_file_path = file
             device_file_path = Path.joinpath(self.device_media_path, self.current_upload_filename)
             self._upload(host_file_path, device_file_path)
-
 
     def _upload(self, host_file_path, device_file_path):
         self._stop_photos()
@@ -126,7 +130,6 @@ class Watcher:
         else:
             raise Exception(f"{self.current_upload_filename} upload error")
 
-
     def _save_as_uploaded(self, filename):
         with open("uploaded.txt", "a", encoding="UTF-8") as file:
             file.write(f"{filename}\n")
@@ -137,7 +140,7 @@ class Watcher:
         with open("uploaded.txt", "r", encoding="UTF-8") as file:
             lines = file.readlines()
         return [line.strip() for line in lines]
-    
+
     def _stop_photos(self):
         self.logger.debug("killing Photos app")
         cmd = self.device + ["shell", "am", "force-stop", "app.revanced.android.photos"]
@@ -156,6 +159,21 @@ class Watcher:
         except:
             size = 0
         return size
+
+    def _get_remote_media_list(self):
+        self.logger.info("reading gphotos0.db")
+        # Connect to the SQLite database
+        conn = sqlite3.connect(self.gpdb_path)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT filename FROM remote_media")
+
+        filenames = [row[0] for row in cursor.fetchall()]
+
+        # Close the connection
+        conn.close()
+
+        return filenames
 
     def _push_to_device(self, host_file_path, device_file_path):
         self.logger.info(f"{self.current_upload_filename} pushing to device")
@@ -189,12 +207,13 @@ def main():
     parser.add_argument("dir", type=str, help="Directory path to watch")
     parser.add_argument("-s", "--serial", type=str, help="Serial of the device to connect to")
     parser.add_argument("-t", "--timeout", type=int, help="Upload timeout, seconds")
+    parser.add_argument("-g", "--gpdb-path", type=str, help="gphotos0.db path, used for filtering out already uploaded files")
     parser.add_argument("-d", "--host-delete", action="store_true", help="Delete host files on successful upload")
     parser.add_argument("-n", "--no-log", action="store_true", help="Do not keep log of successful uploads in uploaded.txt")
     parser.add_argument("-l", "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Log level")
     args = parser.parse_args()
 
-    u = Watcher(args.dir, args.serial, args.timeout, args.host_delete, args.no_log, args.log_level)
+    u = Watcher(args.dir, args.serial, args.timeout, args.gpdb_path, args.host_delete, args.no_log, args.log_level)
     u.watch()
 
 
