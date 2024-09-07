@@ -158,6 +158,7 @@ class Watcher:
         while True:
             try:
                 self._upload_files()
+                time.sleep(30)
             except Exception as e:
                 self.logger.critical(e)
                 time.sleep(30)
